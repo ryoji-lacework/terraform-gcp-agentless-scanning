@@ -24,7 +24,7 @@ locals {
   included_projects = var.global ? toset([for project in var.project_filter_list : project if !(substr(project, 0, 1) == "-")]) : []
   excluded_projects = var.global ? toset([for project in var.project_filter_list : project if substr(project, 0, 1) == "-"]) : []
 
-  bucket_name = var.global ? google_storage_bucket.lacework_bucket[0].name : ""
+  bucket_name = "${var.prefix}-bucket-${local.suffix}"
   bucket_roles = var.global ? ({
     "roles/storage.admin" = [
       "projectEditor:${local.scanning_project_id}",
@@ -130,7 +130,7 @@ resource "google_storage_bucket" "lacework_bucket" {
   count = var.global ? 1 : 0
 
   project       = local.scanning_project_id
-  name          = "${var.prefix}-bucket-${local.suffix}"
+  name          = local.bucket_name
   force_destroy = var.bucket_force_destroy
   location      = local.region
 

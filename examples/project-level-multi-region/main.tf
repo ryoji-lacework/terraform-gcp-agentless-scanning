@@ -10,6 +10,13 @@ provider "google" {
   region = "us-central1"
 }
 
+locals {
+  project_filter_list = [
+    "monitored-project-1",
+    "monitored-project-2"
+  ]
+}
+
 module "lacework_gcp_agentless_scanning_project_multi_region_use1" {
   source = "../.."
 
@@ -17,10 +24,7 @@ module "lacework_gcp_agentless_scanning_project_multi_region_use1" {
     google = google.use1
   }
 
-  project_filter_list = [
-    "monitored-project-1",
-    "monitored-project-2"
-  ]
+  project_filter_list = local.project_filter_list
 
   global                    = true
   regional                  = true
@@ -33,6 +37,8 @@ module "lacework_gcp_agentless_scanning_project_multi_region_usc1" {
   providers = {
     google = google.usc1
   }
+
+  project_filter_list = local.project_filter_list
 
   regional                = true
   global_module_reference = module.lacework_gcp_agentless_scanning_project_multi_region_use1
