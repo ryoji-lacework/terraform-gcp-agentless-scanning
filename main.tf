@@ -431,6 +431,10 @@ resource "google_cloud_run_v2_job" "agentless_orchestrate" {
           name  = "GCP_SCAN_LIST"
           value = join(", ", var.project_filter_list)
         }
+        env {
+          name  = "GCP_CUSTOM_SUBNETWORK"
+          value = var.custom_vpc_subnet
+        }
 
       }
       service_account = local.agentless_orchestrate_service_account_email
@@ -438,7 +442,9 @@ resource "google_cloud_run_v2_job" "agentless_orchestrate" {
     }
   }
 
-  depends_on = [google_project_service.required_apis]
+  depends_on = [
+    google_project_service.required_apis
+  ]
 }
 
 data "google_compute_default_service_account" "default" {
