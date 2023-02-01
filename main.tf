@@ -14,9 +14,9 @@ locals {
 
   region = data.google_client_config.default.region
 
-  service_account_name     = var.global ? (length(var.service_account_name) > 0 ? var.service_account_name : "${var.prefix}-sa-${local.suffix}") : ""
-  service_account_json_key = var.global ? jsondecode(base64decode(module.lacework_agentless_scan_svc_account[0].private_key)) : jsondecode("{}")
-  service_account_permissions = var.global ? toset([
+  lacework_integration_service_account_name     = var.global ? (length(var.lacework_integration_service_account_name) > 0 ? var.lacework_integration_service_account_name : "${var.prefix}-sa-${local.suffix}") : ""
+  lacework_integration_service_account_json_key = var.global ? jsondecode(base64decode(module.lacework_agentless_scan_svc_account[0].private_key)) : jsondecode("{}")
+  lacework_integration_service_account_permissions = var.global ? toset([
     "roles/storage.objectViewer",
     "roles/run.invoker",
   ]) : []
@@ -35,7 +35,7 @@ locals {
       "serviceAccount:${local.agentless_scan_service_account_email}"
     ],
     "roles/storage.objectViewer" = [
-      "serviceAccount:${local.service_account_json_key.client_email}",
+      "serviceAccount:${local.lacework_integration_service_account_json_key.client_email}",
       "projectViewer:${local.scanning_project_id}"
     ]
   }) : ({})
@@ -76,10 +76,10 @@ resource "lacework_integration_gcp_agentless_scanning" "lacework_cloud_account" 
   scanning_project_id = local.scanning_project_id
   filter_list         = var.project_filter_list
   credentials {
-    client_id      = local.service_account_json_key.client_id
-    private_key_id = local.service_account_json_key.private_key_id
-    client_email   = local.service_account_json_key.client_email
-    private_key    = local.service_account_json_key.private_key
+    client_id      = local.lacework_integration_service_account_json_key.client_id
+    private_key_id = local.lacework_integration_service_account_json_key.private_key_id
+    client_email   = local.lacework_integration_service_account_json_key.client_email
+    private_key    = local.lacework_integration_service_account_json_key.private_key
   }
 }
 
@@ -163,26 +163,31 @@ resource "google_storage_bucket_iam_binding" "lacework_bucket" {
 
 // IAM Configuration
 
-// Lacework Service Account to access Object Storage
+//----------------------------------------------------------------------------------------------
+
+// Lacework Integration Service Account to access Object Storage
 module "lacework_agentless_scan_svc_account" {
   count = var.global ? 1 : 0
 
   source               = "lacework/service-account/gcp"
   version              = "~> 1.0"
   create               = true
-  service_account_name = local.service_account_name
+  service_account_name = local.lacework_integration_service_account_name
   project_id           = local.scanning_project_id
 }
 
+// Lacework Integrtion Service Account <-> Role Binding
 resource "google_project_iam_member" "lacework_svc_account" {
-  for_each = local.service_account_permissions
+  for_each = local.lacework_integration_service_account_permissions
 
   project = local.scanning_project_id
   role    = each.key
-  member  = "serviceAccount:${local.service_account_json_key.client_email}"
+  member  = "serviceAccount:${local.lacework_integration_service_account_json_key.client_email}"
 }
 
-// Service Account for Orchestration
+//----------------------------------------------------------------------------------------------
+
+// Orchestrate Service Account for Enumeration and Clone creation
 resource "google_service_account" "agentless_orchestrate" {
   count = var.global ? 1 : 0
 
@@ -194,25 +199,7 @@ resource "google_service_account" "agentless_orchestrate" {
   depends_on = [google_project_service.required_apis]
 }
 
-// Organization Role for Snapshot Creation
-resource "google_organization_iam_custom_role" "agentless_orchestrate" {
-  count = var.global && (var.integration_type == "ORGANIZATION") ? 1 : 0
-
-  role_id = "${var.prefix}-org-snapshot-${local.suffix}"
-  org_id  = var.organization_id
-  title   = "Lacework Agentless Workload Scanning Role (Organization Snapshots)"
-  permissions = [
-    "iam.roles.get",
-    "compute.disks.createSnapshot",
-    "compute.disks.get",
-    "compute.instances.get",
-    "compute.instances.list",
-    "compute.projects.get",
-    "compute.zones.list",
-  ]
-}
-
-// Service Account <-> Role Binding
+// Orchestrate Service Account <-> Role Binding for Custom Role created in Organization
 resource "google_organization_iam_member" "agentless_orchestrate" {
   count = var.global && (var.integration_type == "ORGANIZATION") ? 1 : 0
 
@@ -221,42 +208,16 @@ resource "google_organization_iam_member" "agentless_orchestrate" {
   member = "serviceAccount:${local.agentless_orchestrate_service_account_email}"
 }
 
-// Role for Scanner Creation
-resource "google_project_iam_custom_role" "agentless_orchestrate" {
-  count = var.global ? 1 : 0
+// Orchestrate Service Account <-> Role Binding for Custom Role created in each monitored project
+resource "google_project_iam_member" "agentless_orchestrate_monitored_project" {
+  for_each = google_project_iam_custom_role.agentless_orchestrate_monitored_project
 
-  project = local.scanning_project_id
-  role_id = replace("${var.prefix}-orchestrate-${local.suffix}", "-", "_")
-  title   = "Lacework Agentless Workload Scanning Role (Create Scanners)"
-  permissions = [
-    "compute.disks.create",
-    "compute.disks.delete",
-    "compute.disks.list",
-    "compute.disks.setLabels",
-    "compute.disks.use",
-    "compute.instances.create",
-    "compute.instances.setIamPolicy",
-    "compute.instances.list",
-    "compute.instances.delete",
-    "compute.instances.list",
-    "compute.instances.setMetadata",
-    "compute.instances.setServiceAccount",
-    "compute.snapshots.create",
-    "compute.snapshots.delete",
-    "compute.snapshots.list",
-    "compute.snapshots.setLabels",
-    "compute.snapshots.useReadOnly",
-    "compute.subnetworks.use",
-    "compute.subnetworks.useExternalIp",
-    "compute.zoneOperations.get",
-    "storage.objects.list",
-    "storage.objects.create",
-    "storage.objects.delete",
-    "storage.objects.get",
-  ]
+  project = split("/", each.value.id)[1]
+  role    = each.value.id
+  member  = "serviceAccount:${local.agentless_orchestrate_service_account_email}"
 }
 
-// Service Account <-> Role Binding
+// Orchestrate Service Account <-> Role Binding for Custom Role created in Scanner Project
 resource "google_project_iam_member" "agentless_orchestrate" {
   count = var.global ? 1 : 0
 
@@ -265,7 +226,7 @@ resource "google_project_iam_member" "agentless_orchestrate" {
   member  = "serviceAccount:${local.agentless_orchestrate_service_account_email}"
 }
 
-// Service Account <-> Role Binding
+// Orchestrate Service Account <-> Role Binding for Service Account usage in Scanner Project
 resource "google_project_iam_member" "agentless_orchestrate_service_account_user" {
   count = var.global ? 1 : 0
 
@@ -274,34 +235,7 @@ resource "google_project_iam_member" "agentless_orchestrate_service_account_user
   member  = "serviceAccount:${local.agentless_orchestrate_service_account_email}"
 }
 
-// Role for Snapshot Creation
-resource "google_project_iam_custom_role" "agentless_orchestrate_project" {
-  for_each = var.global && (var.integration_type == "PROJECT") ? setunion([local.scanning_project_id], local.included_projects) : []
-
-  project = each.key
-  role_id = replace("${var.prefix}-snapshot-${local.suffix}", "-", "_")
-  title   = "Lacework Agentless Workload Scanning Role (Create Snapshots)"
-  permissions = [
-    "compute.disks.createSnapshot",
-    "compute.disks.get",
-    "compute.disks.useReadOnly",
-    "compute.instances.get",
-    "compute.instances.list",
-    "compute.zones.list",
-    "compute.disks.useReadOnly",
-  ]
-}
-
-// Service Account <-> Role Binding
-resource "google_project_iam_member" "agentless_orchestrate_project" {
-  for_each = google_project_iam_custom_role.agentless_orchestrate_project
-
-  project = split("/", each.value.id)[1]
-  role    = each.value.id
-  member  = "serviceAccount:${local.agentless_orchestrate_service_account_email}"
-}
-
-// Role for Cloud Run invocation
+// Orchestrate Service Account <-> Role Binding for Cloud Run invocation in Scanner Project
 resource "google_project_iam_member" "agentless_orchestrate_invoker" {
   count = var.global ? 1 : 0
 
@@ -310,16 +244,9 @@ resource "google_project_iam_member" "agentless_orchestrate_invoker" {
   member  = "serviceAccount:${local.agentless_orchestrate_service_account_email}"
 }
 
-// Role for assigning Service Accounts to Compute
-resource "google_project_iam_member" "agentless_orchestrate_service_account" {
-  count = var.global ? 1 : 0
+//----------------------------------------------------------------------------------------------
 
-  project = local.scanning_project_id
-  role    = "roles/iam.serviceAccountUser"
-  member  = "serviceAccount:${local.agentless_orchestrate_service_account_email}"
-}
-
-// Service Account for Scanners
+// Scan Service Account
 resource "google_service_account" "agentless_scan" {
   count = var.global ? 1 : 0
 
@@ -331,25 +258,7 @@ resource "google_service_account" "agentless_scan" {
   depends_on = [google_project_service.required_apis]
 }
 
-// Role for Scanners to interact with snapshots
-resource "google_project_iam_custom_role" "agentless_scan" {
-  count = var.global ? 1 : 0
-
-  project = local.scanning_project_id
-  role_id = replace("${var.prefix}-scanner-${local.suffix}", "-", "_")
-  title   = "Lacework Agentless Workload Scanning Role (Scanner)"
-  permissions = [
-    "compute.disks.create",
-    "compute.disks.get",
-    "compute.instances.create",
-    "compute.snapshots.delete",
-    "compute.snapshots.list",
-    "compute.snapshots.setLabels",
-    "compute.snapshots.useReadOnly",
-  ]
-}
-
-// Service Account <-> Role Binding
+// Scan Service Account <-> Role Binding for Custom Role created in Scanner Project
 resource "google_project_iam_member" "agentless_scan" {
   count = var.global ? 1 : 0
 
@@ -357,6 +266,8 @@ resource "google_project_iam_member" "agentless_scan" {
   role    = google_project_iam_custom_role.agentless_scan[0].id
   member  = "serviceAccount:${local.agentless_scan_service_account_email}"
 }
+
+//----------------------------------------------------------------------------------------------
 
 // Regional - The following are resources created once per Google Cloud region
 // Only create regional resources if regional variable is set to true

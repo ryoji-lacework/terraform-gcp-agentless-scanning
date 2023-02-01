@@ -159,7 +159,7 @@ variable "labels" {
   description = "Set of labels which will be added to the resources managed by the module."
 }
 
-variable "service_account_name" {
+variable "lacework_integration_service_account_name" {
   type        = string
   default     = ""
   description = "The name of the service account Lacework will use to access scan results."
