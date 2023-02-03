@@ -34,12 +34,12 @@ output "prefix" {
 }
 
 output "service_account_name" {
-  value       = local.service_account_name
+  value       = local.lacework_integration_service_account_name
   description = "The service account name for Lacework."
 }
 
 output "service_account_private_key" {
-  value       = local.service_account_json_key
+  value       = local.lacework_integration_service_account_json_key
   description = "The base64 encoded private key in JSON format for Lacework."
   sensitive   = true
 }
