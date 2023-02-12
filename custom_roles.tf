@@ -14,7 +14,6 @@ resource "google_project_iam_custom_role" "agentless_orchestrate_monitored_proje
     "compute.instances.get",
     "compute.instances.list",
     "compute.zones.list",
-    "compute.disks.useReadOnly",
   ]
 }
 
@@ -26,16 +25,19 @@ resource "google_project_iam_custom_role" "agentless_orchestrate_monitored_proje
 resource "google_organization_iam_custom_role" "agentless_orchestrate" {
   count = var.global && (var.integration_type == "ORGANIZATION") ? 1 : 0
 
-  role_id = "${var.prefix}-org-snapshot-${local.suffix}"
+  role_id = replace("${var.prefix}-snapshot-${local.suffix}", "-", "_")
   org_id  = var.organization_id
   title   = "Lacework Agentless Workload Scanning Role for monitored organization (Organization Snapshots)"
   permissions = [
     "iam.roles.get",
     "compute.disks.get",
+    "compute.disks.useReadOnly",
     "compute.instances.get",
     "compute.instances.list",
     "compute.projects.get",
     "compute.zones.list",
+    "resourcemanager.folders.list",
+    "resourcemanager.projects.list",
   ]
 }
 
