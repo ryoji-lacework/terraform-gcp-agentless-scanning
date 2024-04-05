@@ -22,6 +22,7 @@ A Terraform Module to configure the Lacework Agentless Scanner.
 | <a name="provider_google"></a> [google](#provider\_google) | ~> 4.46 |
 | <a name="provider_lacework"></a> [lacework](#provider\_lacework) | ~> 1.18 |
 | <a name="provider_random"></a> [random](#provider\_random) | n/a |
+| <a name="provider_terraform"></a> [terraform](#provider\_terraform) | n/a |
 
 ## Modules
 
@@ -57,6 +58,7 @@ A Terraform Module to configure the Lacework Agentless Scanner.
 | [google_storage_bucket_iam_binding.lacework_bucket](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/storage_bucket_iam_binding) | resource |
 | [lacework_integration_gcp_agentless_scanning.lacework_cloud_account](https://registry.terraform.io/providers/lacework/lacework/latest/docs/resources/integration_gcp_agentless_scanning) | resource |
 | [random_id.uniq](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/id) | resource |
+| [terraform_data.execute_cloud_run_job](https://registry.terraform.io/providers/hashicorp/terraform/latest/docs/resources/data) | resource |
 | [google_client_config.default](https://registry.terraform.io/providers/hashicorp/google/latest/docs/data-sources/client_config) | data source |
 | [google_compute_default_service_account.default](https://registry.terraform.io/providers/hashicorp/google/latest/docs/data-sources/compute_default_service_account) | data source |
 | [google_project.selected](https://registry.terraform.io/providers/hashicorp/google/latest/docs/data-sources/project) | data source |
@@ -75,6 +77,7 @@ A Terraform Module to configure the Lacework Agentless Scanner.
 | <a name="input_bucket_force_destroy"></a> [bucket\_force\_destroy](#input\_bucket\_force\_destroy) | Force destroy bucket (if disabled, terraform will not be able to destroy non-empty bucket) | `bool` | `true` | no |
 | <a name="input_bucket_lifecycle_rule_age"></a> [bucket\_lifecycle\_rule\_age](#input\_bucket\_lifecycle\_rule\_age) | Number of days to keep agentless scan objects in bucket before deletion. | `number` | `30` | no |
 | <a name="input_custom_vpc_subnet"></a> [custom\_vpc\_subnet](#input\_custom\_vpc\_subnet) | The name of the custom Google Cloud VPC subnet to use for scanning compute resources | `string` | `""` | no |
+| <a name="input_execute_job_at_deployment"></a> [execute\_job\_at\_deployment](#input\_execute\_job\_at\_deployment) | execute newly created cloud run job(s) immediately after deployment | `bool` | `true` | no |
 | <a name="input_global"></a> [global](#input\_global) | Whether or not to create global resources. Defaults to `false`. | `bool` | `false` | no |
 | <a name="input_global_module_reference"></a> [global\_module\_reference](#input\_global\_module\_reference) | A reference to the global lacework\_gcp\_agentless\_scanning module for this account. | <pre>object({<br>    agentless_orchestrate_service_account_email = string<br>    agentless_scan_service_account_email        = string<br>    agentless_scan_secret_id                    = string<br>    lacework_account                            = string<br>    lacework_domain                             = string<br>    prefix                                      = string<br>    suffix                                      = string<br>    project_filter_list                         = list(any)<br>  })</pre> | <pre>{<br>  "agentless_orchestrate_service_account_email": "",<br>  "agentless_scan_secret_id": "",<br>  "agentless_scan_service_account_email": "",<br>  "lacework_account": "",<br>  "lacework_domain": "",<br>  "prefix": "",<br>  "project_filter_list": [],<br>  "suffix": ""<br>}</pre> | no |
 | <a name="input_image_url"></a> [image\_url](#input\_image\_url) | The container image url for Lacework Agentless Workload Scanning. | `string` | `"us-docker.pkg.dev/agentless-sidekick-images-tl48/sidekick/sidekick"` | no |
