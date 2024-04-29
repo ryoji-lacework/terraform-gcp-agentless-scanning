@@ -213,7 +213,7 @@ module "lacework_agentless_scan_svc_account" {
 resource "google_project_iam_member" "lacework_svc_account" {
   for_each = local.lacework_integration_service_account_permissions
   #Skip if using an existing service account
-  count = var.use_existing_service_account ? 0 : 1  
+  #count = var.use_existing_service_account ? 0 : 1  
   project = local.scanning_project_id
   role    = each.key
   member  = "serviceAccount:${local.lacework_integration_service_account_json_key.client_email}"
@@ -223,8 +223,8 @@ resource "google_project_iam_member" "lacework_svc_account" {
 
 // Orchestrate Service Account for Enumeration and Clone creation
 resource "google_service_account" "agentless_orchestrate" {
-  #count = var.global ? 1 : 0
-  count        = var.global && !var.use_existing_service_account ? 1 : 0
+  count = var.global ? 1 : 0
+  #count        = var.global && !var.use_existing_service_account ? 1 : 0
   account_id   = "${var.prefix}-orchestrate-${local.suffix}"
   description  = "Cloud Run service account for Lacework Agentless Workload Scanning orchestration"
   display_name = "${var.prefix}-orchestrate-${local.suffix}"
