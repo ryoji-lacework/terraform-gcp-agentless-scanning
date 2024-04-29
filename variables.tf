@@ -234,3 +234,15 @@ variable "execute_job_at_deployment" {
   description = "execute newly created cloud run job(s) immediately after deployment"
   default = false
 }
+
+# Enable the use of an existing Service Account instead of creating a new one
+variable "use_existing_service_account" {
+  type        = bool
+  default     = false
+  description = "Set this to true to use an existing Service Account"
+}
+variable "service_account_private_key" {
+  type        = string
+  default     = ""
+  description = "The private key in JSON format, base64 encoded (required when use_existing_service_account is set to true)"
+}

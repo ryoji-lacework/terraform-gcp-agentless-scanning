@@ -5,7 +5,10 @@ locals {
   scanning_project_id = length(var.scanning_project_id) > 0 ? var.scanning_project_id : data.google_project.selected[0].project_id
   organization_id     = length(var.organization_id) > 0 ? var.organization_id : (data.google_project.selected[0].org_id != null ? data.google_project.selected[0].org_id : "")
 
-  agentless_orchestrate_service_account_email = var.global ? google_service_account.agentless_orchestrate[0].email : (length(var.global_module_reference.agentless_orchestrate_service_account_email) > 0 ? var.global_module_reference.agentless_orchestrate_service_account_email : var.agentless_orchestrate_service_account_email)
+  #Use of Existing Account: The code now first checks if var.use_existing_service_account is true. If it is, it uses the value of var.existing_orchestrate_service_account_email, which you should define as the email of the existing service account intended for orchestrate tasks.
+  agentless_orchestrate_service_account_email = var.use_existing_service_account ? var.existing_orchestrate_service_account_email : (var.global ? google_service_account.agentless_orchestrate[0].email : (length(var.global_module_reference.agentless_orchestrate_service_account_email) > 0 ? var.global_module_reference.agentless_orchestrate_service_account_email : var.agentless_orchestrate_service_account_email))
+  #agentless_orchestrate_service_account_email = var.global ? google_service_account.agentless_orchestrate[0].email : (length(var.global_module_reference.agentless_orchestrate_service_account_email) > 0 ? var.global_module_reference.agentless_orchestrate_service_account_email : var.agentless_orchestrate_service_account_email)
+  
   agentless_scan_service_account_email        = var.global ? google_service_account.agentless_scan[0].email : (length(var.global_module_reference.agentless_scan_service_account_email) > 0 ? var.global_module_reference.agentless_scan_service_account_email : var.agentless_scan_service_account_email)
   agentless_scan_secret_id                    = var.global ? google_secret_manager_secret.agentless_orchestrate[0].id : (length(var.global_module_reference.agentless_scan_secret_id) > 0 ? var.global_module_reference.agentless_scan_secret_id : var.agentless_scan_secret_id)
 
@@ -18,7 +21,10 @@ locals {
   region = data.google_client_config.default.region
 
   lacework_integration_service_account_name     = var.global ? (length(var.lacework_integration_service_account_name) > 0 ? var.lacework_integration_service_account_name : "${var.prefix}-sa-${local.suffix}") : ""
-  lacework_integration_service_account_json_key = var.global ? jsondecode(base64decode(module.lacework_agentless_scan_svc_account[0].private_key)) : jsondecode("{}")
+  #lacework_integration_service_account_json_key = var.global ? jsondecode(base64decode(module.lacework_agentless_scan_svc_account[0].private_key)) : jsondecode("{}")
+  #Accommodate using an existing service account for lacework_integration_service_account_json_key
+  lacework_integration_service_account_json_key = var.use_existing_service_account ? jsondecode(base64decode(var.service_account_private_key)) : jsondecode(base64decode(module.lacework_agentless_scan_svc_account[0].private_key))
+
   lacework_integration_service_account_permissions = var.global ? toset([
     "roles/storage.objectViewer",
     "roles/run.invoker",
@@ -188,12 +194,17 @@ resource "google_storage_bucket_iam_binding" "lacework_bucket" {
 //----------------------------------------------------------------------------------------------
 
 // Lacework Integration Service Account to access Object Storage
+
+# It includes an option to use an existing service account instead of creating a new one. 
+# This is controlled by the 'use_existing_service_account' variable. 
+# If set to true, the module will not create a new service account; instead, it will configure the existing one specified by 'service_account_name'.
+
 module "lacework_agentless_scan_svc_account" {
   count = var.global ? 1 : 0
 
   source               = "lacework/service-account/gcp"
   version              = "~> 1.0"
-  create               = true
+  create               = var.use_existing_service_account ? false : true
   service_account_name = local.lacework_integration_service_account_name
   project_id           = local.scanning_project_id
 }
@@ -201,7 +212,8 @@ module "lacework_agentless_scan_svc_account" {
 // Lacework Integrtion Service Account <-> Role Binding
 resource "google_project_iam_member" "lacework_svc_account" {
   for_each = local.lacework_integration_service_account_permissions
-
+  #Skip if using an existing service account
+  count = var.use_existing_service_account ? 0 : 1  
   project = local.scanning_project_id
   role    = each.key
   member  = "serviceAccount:${local.lacework_integration_service_account_json_key.client_email}"
@@ -211,8 +223,8 @@ resource "google_project_iam_member" "lacework_svc_account" {
 
 // Orchestrate Service Account for Enumeration and Clone creation
 resource "google_service_account" "agentless_orchestrate" {
-  count = var.global ? 1 : 0
-
+  #count = var.global ? 1 : 0
+  count        = var.global && !var.use_existing_service_account ? 1 : 0
   account_id   = "${var.prefix}-orchestrate-${local.suffix}"
   description  = "Cloud Run service account for Lacework Agentless Workload Scanning orchestration"
   display_name = "${var.prefix}-orchestrate-${local.suffix}"
